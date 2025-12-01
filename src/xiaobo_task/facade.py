@@ -351,6 +351,7 @@ class XiaoboTask(_BaseTask):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """在 'with' 语句结束时，安全关闭底层的 TaskManager。"""
+        self.wait()
         self.shutdown(False, True)
 
 
@@ -488,4 +489,5 @@ class AsyncXiaoboTask(_BaseTask):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.wait()
         await self.shutdown(False, True)

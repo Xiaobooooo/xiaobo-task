@@ -13,6 +13,9 @@ from curl_cffi.requests.impersonate import DEFAULT_CHROME
 
 # 使用线程本地存储为每个线程维护一个独立的事件循环
 _thread_local = threading.local()
+# 进程内文件锁表，避免多线程写同一文件时竞争
+_thread_file_locks: dict[Path, threading.Lock] = {}
+_file_locks_guard = threading.Lock()
 
 
 def _resolve_txt_path(filename: str) -> Path:
@@ -77,14 +80,16 @@ def write_txt_file(filename: str, data: str | List[str], append: bool = True, se
     :param separator: data 为列表时的拼接分隔符。
     """
     path = _resolve_txt_path(filename)
+    lock = _get_thread_lock(path)
 
     text = separator.join(data) if isinstance(data, list) else str(data)
     if text and not text.endswith('\n'):
         text += '\n'
 
     mode = 'a' if append else 'w'
-    with open(path, mode, encoding='utf-8') as f:
-        f.write(text)
+    with lock:
+        with open(path, mode, encoding='utf-8') as f:
+            f.write(text)
 
 
 def get_session(proxy: str = None, timeout: int = 30, impersonate: Optional[BrowserTypeLiteral] = DEFAULT_CHROME):
@@ -93,3 +98,13 @@ def get_session(proxy: str = None, timeout: int = 30, impersonate: Optional[Brow
 
 def get_async_session(proxy: str = None, timeout: int = 30, impersonate: Optional[BrowserTypeLiteral] = DEFAULT_CHROME):
     return AsyncSession(proxy=proxy, timeout=timeout, impersonate=impersonate)
+
+
+def _get_thread_lock(path: Path) -> threading.Lock:
+    """为目标路径获取/创建一个进程内线程锁。"""
+    with _file_locks_guard:
+        lock = _thread_file_locks.get(path)
+        if lock is None:
+            lock = threading.Lock()
+            _thread_file_locks[path] = lock
+        return lock
