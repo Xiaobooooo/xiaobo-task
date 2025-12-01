@@ -6,7 +6,7 @@ from typing import Any
 from loguru import logger
 from xiaobo_task import XiaoboTask, Target
 
-APP_NAME = "XiaoboTaskExample"
+APPNAME = "XiaoboTaskExample"
 
 
 def example_task_processor(target: Target):
@@ -52,7 +52,7 @@ def main():
     # 使用 pydantic-settings 后，可以在初始化时通过关键字参数覆盖任何配置
     # 例如，这里我们将 .env 文件中的 MAX_WORKERS (如果存在) 覆盖为 3
     # XiaoboTask 初始化时会自动以中文打印所有加载的配置
-    with XiaoboTask(APP_NAME, shuffle=False) as task_manager:
+    with XiaoboTask(APPNAME, shuffle=False) as task_manager:
         logger.info("--- 开始批量提交任务 ---")
         # 批量提交任务
         # 也可以在提交时覆盖重试策略

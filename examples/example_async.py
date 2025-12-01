@@ -4,7 +4,6 @@ import random
 from typing import Any
 
 from loguru import logger
-from tenacity import retry
 
 from xiaobo_task import Target, AsyncXiaoboTask
 
@@ -51,7 +50,7 @@ def on_task_cancel(target: Target):
 
 
 async def main():
-    async with AsyncXiaoboTask(APPNAME, shuffle=False,  retries=1) as task_manager:
+    async with AsyncXiaoboTask(APPNAME, shuffle=False, retries=1) as task_manager:
         task_manager.submit_tasks_from_file(
             task_func=example_async_task_processor,
             filename=FILENAME,

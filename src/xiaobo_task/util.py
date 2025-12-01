@@ -61,14 +61,14 @@ def read_txt_file_lines(filename: str) -> List[str]:
         raise IOError(f"读取文件 '{path}' 时发生错误: {e}")
 
 
-def write_txt_file(filename: str, data: str | List[str], append: bool = False, separator: str = "----") -> None:
+def write_txt_file(filename: str, data: str | List[str], append: bool = True, separator: str = "----") -> None:
     """
     写入或追加文本到txt文件。
 
     功能:
     - 自动补全 .txt 后缀（不区分大小写）。
     - data 支持字符串或字符串列表，列表会用分隔符拼接后写入。
-    - append 为 True 时追加写入，否则覆盖写入。
+    - append 为 True 时追加写入，否则覆盖写入，默认 True。
     - separator 控制列表拼接时的分隔符，默认 "----"。
 
     :param filename: 目标文件名。

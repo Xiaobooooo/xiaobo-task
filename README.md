@@ -16,11 +16,11 @@ Xiaobo Task
 ----
 ### uv
 ```
-uv add git+https://github.com/Xiaobooooo/xiaobo_task.git
+uv add git+https://github.com/Xiaobooooo/xiaobo-task.git
 ```
 ### pip
 ```
-pip install git+https://github.com/Xiaobooooo/xiaobo_task.git
+pip install git+https://github.com/Xiaobooooo/xiaobo-task.git
 ```
 
 快速上手（同步）
