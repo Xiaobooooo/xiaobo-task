@@ -2,24 +2,26 @@ import asyncio
 import inspect
 import os
 import random
+import threading
 import traceback
 from abc import ABC, abstractmethod
+from asyncio import Task
 from concurrent import futures
-from typing import Optional, Callable, Any, List, Union, Type, overload
-from threading import Lock
+from concurrent.futures import Future
+from typing import Optional, Callable, Any, List, Union, Type, Awaitable, overload
 
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from xiaobo_task import util
 from xiaobo_task.domain import Target
-from xiaobo_task.manager import _BaseTaskManager, TaskManager, AsyncTaskManager
+from xiaobo_task.manager import BaseTaskManager, TaskManager, AsyncTaskManager
 from xiaobo_task.settings import Settings
 
 
-class _BaseTask(ABC):
+class BaseTask(ABC):
 
-    def __init__(self, task_manager_cls: Type[_BaseTaskManager], name: str = "XiaoboTask", **kwargs):
+    def __init__(self, task_manager_cls: Type[BaseTaskManager], name: str = "XiaoboTask", **kwargs):
         """初始化 XiaoboTask 实例。
 
         配置会自动从 .env 文件、环境变量或默认值加载。
@@ -44,10 +46,8 @@ class _BaseTask(ABC):
         # 记录加载的配置信息
         self._log_settings()
 
-        self._stats_lock = Lock()
-        self._stats = {"success": 0, "error": 0, "cancel": 0}
+        self._stats = {"success": 0, "pending": 0, "error": 0, "cancel": 0}
         self._errors: List[str] = []
-        self._futures = []
 
     def _log_settings(self):
         """以中文格式，逐行记录加载的配置信息，并处理中文字符对齐。"""
@@ -70,44 +70,6 @@ class _BaseTask(ABC):
             self.logger.info(f"{description}: {value_str}")
 
         self.logger.info("--- 配置加载完毕 ---")
-
-    def _increment_stat(self, key: str):
-        """线程安全地自增指定回调计数。"""
-        with self._stats_lock:
-            self._stats[key] += 1
-
-    def _get_stat(self, key: str) -> int:
-        """线程安全地获取单个回调计数。"""
-        with self._stats_lock:
-            return self._stats[key]
-
-    def get_success_count(self) -> int:
-        """获取成功回调次数。"""
-        return self._get_stat("success")
-
-    def get_error_count(self) -> int:
-        """获取失败回调次数。"""
-        return self._get_stat("error")
-
-    def get_cancel_count(self) -> int:
-        """获取取消回调次数。"""
-        return self._get_stat("cancel")
-
-    def statistics(self):
-        """
-        返回统计信息的字符串报告，包含成功/取消/失败个数，
-        以及按顺序列出的错误详情（格式: data/data[0]: 错误信息）。
-        """
-        with self._stats_lock:
-            success = self._stats["success"]
-            cancel = self._stats["cancel"]
-            error = self._stats["error"]
-            errors = self._errors
-
-        header = f"成功: {success}   取消: {cancel}   失败: {error}"
-        if errors:
-            header += f"\n<red>{"\n".join(errors)}</red>"
-        self.logger.opt(colors=True).info(header)
 
     def submit_tasks(
             self,
@@ -198,6 +160,72 @@ class _BaseTask(ABC):
             retry_delay=retry_delay,
         )
 
+    @overload
+    @abstractmethod
+    def _increment_stat(self, key: str):
+        """线程安全地自增指定回调计数。"""
+
+    @overload
+    @abstractmethod
+    async def _increment_stat(self, key: str):
+        """线程安全地自增指定回调计数。"""
+
+    @overload
+    @abstractmethod
+    def _get_stat(self, key: str):
+        """线程安全地获取单个回调计数。"""
+
+    @overload
+    @abstractmethod
+    async def _get_stat(self, key: str):
+        """线程安全地获取单个回调计数。"""
+
+    @overload
+    @abstractmethod
+    def get_success_count(self) -> int:
+        """获取成功任务数。"""
+
+    @overload
+    @abstractmethod
+    async def get_success_count(self) -> int:
+        """获取成功任务数。"""
+
+    @overload
+    @abstractmethod
+    def get_error_count(self) -> int:
+        """获取失败任务数。"""
+
+    @overload
+    @abstractmethod
+    async def get_error_count(self) -> int:
+        """获取失败任务数。"""
+
+    @overload
+    @abstractmethod
+    def get_cancel_count(self) -> int:
+        """获取取消任务数。"""
+
+    @overload
+    @abstractmethod
+    async def get_cancel_count(self) -> int:
+        """获取取消任务数。"""
+
+    @overload
+    @abstractmethod
+    def statistics(self):
+        """
+        返回统计信息的字符串报告，包含成功/失败/取消个数，
+        以及按顺序列出的错误详情（格式: data/data[0]: 错误信息）。
+        """
+
+    @overload
+    @abstractmethod
+    async def statistics(self):
+        """
+        返回统计信息的字符串报告，包含成功/失败/取消个数，
+        以及按顺序列出的错误详情（格式: data/data[0]: 错误信息）。
+        """
+
     @abstractmethod
     def submit_task(
             self,
@@ -208,21 +236,32 @@ class _BaseTask(ABC):
             on_cancel: Optional[Callable[[Target], None]] = None,
             retries: Optional[int] = None,
             retry_delay: Optional[float] = None,
-    ) -> Any:
-        raise NotImplementedError
+    ) -> Future | Task:
+        """提交任务到任务池"""
 
+    @overload
     @abstractmethod
     def wait(self):
         """等待已提交的任务完成，支持捕获 Ctrl+C 中断。"""
-        raise NotImplementedError
 
+    @overload
+    @abstractmethod
+    async def wait(self):
+        """等待已提交的任务完成，支持捕获 Ctrl+C 中断。"""
+
+    @overload
     @abstractmethod
     def shutdown(self):
         """等待已提交的任务完成，支持捕获 Ctrl+C 中断。"""
-        raise NotImplementedError
+
+    @overload
+    @abstractmethod
+    async def shutdown(self):
+        """等待已提交的任务完成，支持捕获 Ctrl+C 中断。"""
 
 
-class XiaoboTask(_BaseTask):
+class XiaoboTask(BaseTask):
+
     def __init__(self, name: str = "XiaoboTask", **kwargs):
         """初始化 XiaoboTask 实例。
 
@@ -235,6 +274,36 @@ class XiaoboTask(_BaseTask):
                       例如: max_workers=10, retries=5
         """
         super().__init__(TaskManager, name, **kwargs)
+        self._stats_lock = threading.Lock()
+
+    def _increment_stat(self, key: str):
+        with self._stats_lock:
+            self._stats[key] += 1
+
+    def _get_stat(self, key: str):
+        with self._stats_lock:
+            return self._stats.get(key, 0)
+
+    def get_success_count(self) -> int:
+        return self._get_stat('success')
+
+    def get_error_count(self) -> int:
+        return self._get_stat('error')
+
+    def get_cancel_count(self) -> int:
+        return self._get_stat('cancel')
+
+    def statistics(self):
+        with self._stats_lock:
+            success = self._stats["success"]
+            cancel = self._stats["cancel"]
+            error = self._stats["error"]
+            errors = self._errors
+
+        header = f"成功: {success}   取消: {cancel}   失败: {error}"
+        if errors:
+            header += f"\n<red>{"\n".join(errors)}</red>"
+        self.logger.opt(colors=True).info(header)
 
     def submit_task(
             self,
@@ -325,25 +394,22 @@ class XiaoboTask(_BaseTask):
             on_error=on_task_error,
             on_cancel=on_task_cancel,
         )
-        self._futures.append(future)
 
-    def wait(self):
+    def wait(self, wait_callbacks: bool = True):
         """等待已提交的任务完成，支持捕获 Ctrl+C 中断。"""
-        pending = set(self._futures)
         try:
-            while pending:
-                done, pending = futures.wait(pending, timeout=0.05, return_when=futures.FIRST_COMPLETED)
+            self._manager.wait(wait_callbacks)
         except (KeyboardInterrupt, futures.CancelledError):
             self.logger.warning("用户中断，取消未开始的任务，等待运行中的任务...")
-            for future in pending:
-                if not future.done():
-                    future.cancel()
-            self._manager.shutdown()
-        finally:
-            self._futures = [f for f in self._futures if not f.done()]
+            try:
+                self.shutdown(False, True)
+                self._manager.wait(wait_callbacks)
+            except (KeyboardInterrupt, futures.CancelledError):
+                self.logger.error("用户强制中断，程序退出！")
+                os._exit(0)
 
-    def shutdown(self, wait: bool = True, cancel_tasks: bool = False):
-        self._manager.shutdown(wait, cancel_tasks)
+    def shutdown(self, wait: bool = True, cancel_tasks: bool = False, wait_callbacks: bool = True):
+        self._manager.shutdown(wait, cancel_tasks, wait_callbacks)
 
     def __enter__(self):
         """实现上下文管理器协议，在 'with' 语句开始时返回自身。"""
@@ -351,11 +417,10 @@ class XiaoboTask(_BaseTask):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """在 'with' 语句结束时，安全关闭底层的 TaskManager。"""
-        self.wait()
-        self.shutdown(False, True)
+        self.shutdown(True, True)
 
 
-class AsyncXiaoboTask(_BaseTask):
+class AsyncXiaoboTask(BaseTask):
     def __init__(self, name: str = "AsyncXiaoboTask", **kwargs):
         """初始化 AsyncXiaoboTask 实例。
 
@@ -368,14 +433,44 @@ class AsyncXiaoboTask(_BaseTask):
                       例如: max_workers=10, retries=5
         """
         super().__init__(AsyncTaskManager, name, **kwargs)
+        self._stats_lock = asyncio.Lock()
+
+    async def _increment_stat(self, key: str):
+        async with self._stats_lock:
+            self._stats[key] += 1
+
+    async def _get_stat(self, key: str):
+        async with self._stats_lock:
+            return self._stats.get(key, 0)
+
+    async def get_success_count(self) -> int:
+        return await self._get_stat('success')
+
+    async def get_error_count(self) -> int:
+        return await self._get_stat('error')
+
+    async def get_cancel_count(self) -> int:
+        return await self._get_stat('cancel')
+
+    async def statistics(self):
+        async with self._stats_lock:
+            success = self._stats["success"]
+            cancel = self._stats["cancel"]
+            error = self._stats["error"]
+            errors = self._errors
+
+        header = f"成功: {success}   取消: {cancel}   失败: {error}"
+        if errors:
+            header += f"\n<red>{"\n".join(errors)}</red>"
+        self.logger.opt(colors=True).info(header)
 
     def submit_task(
             self,
             task_func: Callable[..., Any],
             target: Optional[Target] = None,
-            on_success: Optional[Callable[[Target, Any], None]] = None,
-            on_error: Optional[Callable[[Target, Exception], None]] = None,
-            on_cancel: Optional[Callable[[Target], None]] = None,
+            on_success: Optional[Callable[[Target, Any], Awaitable | None]] = None,
+            on_error: Optional[Callable[[Target, Exception], Awaitable | None]] = None,
+            on_cancel: Optional[Callable[[Target], Awaitable | None]] = None,
             retries: Optional[int] = None,
             retry_delay: Optional[float] = None,
     ):
@@ -391,13 +486,13 @@ class AsyncXiaoboTask(_BaseTask):
                 await result
 
         async def on_task_success(t: Target, result: Any):
-            self._increment_stat("success")
+            await self._increment_stat("success")
             t.logger.success(f"✅ [{target.data_preview}]任务执行成功")
             if on_success:
                 await _run_callback(on_success, t, result)
 
         async def on_task_cancel(t: Target):
-            self._increment_stat("cancel")
+            await self._increment_stat("cancel")
             t.logger.warning(f"⏹️ [{target.data_preview}]任务取消")
             if on_cancel:
                 await _run_callback(on_cancel, t)
@@ -406,7 +501,7 @@ class AsyncXiaoboTask(_BaseTask):
             if isinstance(error, asyncio.CancelledError):
                 await on_task_cancel(t)
                 return
-            self._increment_stat("error")
+            await self._increment_stat("error")
 
             error_text = f"{error.__class__.__name__}: {error}"
             try:
@@ -420,7 +515,7 @@ class AsyncXiaoboTask(_BaseTask):
                 t.logger.error(f"❌ [{target.data_preview}]任务执行失败 -> {error_text}")
 
             error_text = f"{target.data_preview}: {error_text}"
-            with self._stats_lock:
+            async with self._stats_lock:
                 self._errors.append(error_text)
 
             if on_error:
@@ -464,30 +559,25 @@ class AsyncXiaoboTask(_BaseTask):
             on_error=on_task_error,
             on_cancel=on_task_cancel,
         )
-        self._futures.append(task)
 
-    async def wait(self):
+    async def wait(self, wait_callbacks: bool = True):
         """等待已提交的任务完成，支持捕获 Ctrl+C 中断。"""
-        pending = set(self._futures)
         try:
-            while pending:
-                done, pending = await asyncio.wait(pending, timeout=0.05, return_when=asyncio.FIRST_COMPLETED)
+            await self._manager.wait(wait_callbacks)
         except (KeyboardInterrupt, asyncio.CancelledError):
             self.logger.warning("用户中断，取消未开始的任务，等待运行中的任务...")
-            for task in pending:
-                # 仅取消尚未真正开始运行的任务
-                if not task.done() and not task.started:
-                    task.cancel()
-            await self._manager.shutdown()
-        finally:
-            self._futures = [f for f in self._futures if not f.done()]
+            try:
+                await self.shutdown(False, True)
+                await self._manager.wait(wait_callbacks)
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                self.logger.error("用户强制中断，程序退出！")
+                os._exit(0)
 
-    async def shutdown(self, wait: bool = True, cancel_tasks: bool = False):
-        await self._manager.shutdown(wait, cancel_tasks)
+    async def shutdown(self, wait: bool = True, cancel_tasks: bool = False, wait_callbacks: bool = True):
+        await self._manager.shutdown(wait, cancel_tasks, wait_callbacks)
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.wait()
-        await self.shutdown(False, True)
+        await self.shutdown(True, True)

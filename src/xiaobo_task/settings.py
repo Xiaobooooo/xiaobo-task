@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',
-        case_sensitive=False  # 环境变量名不区分大小写
+        case_sensitive=False,  # 环境变量名不区分大小写
+        extra='ignore'
     )
 
     # --- 线程池配置 ---

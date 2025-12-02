@@ -34,11 +34,12 @@ def example_task_processor(target: Target):
 
 def on_task_success(target: Target, result: Any):
     """任务成功完成时的回调函数。"""
-    target.logger.info(f"成功回调 [数据: {target.data}] -> 结果: {result}")
+    target.logger.success(f"成功回调 [数据: {target.data}] -> 结果: {result}")
 
 
 def on_task_error(target: Target, error: Exception):
     """任务失败时的回调函数（所有重试都用完后才会调用）。"""
+    time.sleep(1) # 模拟阻塞，测试wait是否等待回调函数
     target.logger.error(f"失败回调 [数据: {target.data}] -> 最终异常: {error.__class__.__name__}: {error}")
 
 
@@ -56,7 +57,6 @@ def main():
         logger.info("--- 开始批量提交任务 ---")
         # 批量提交任务
         # 也可以在提交时覆盖重试策略
-
         task_manager.submit_tasks(
             task_func=example_task_processor,
             source=task_data_list,
@@ -65,6 +65,7 @@ def main():
             on_cancel=on_task_cancel,
             retries=1  # 将这批任务的重试次数覆盖为1
         )
+
         task_manager.wait()
 
         task_manager.statistics()

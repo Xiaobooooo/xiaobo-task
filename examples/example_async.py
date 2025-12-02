@@ -5,7 +5,7 @@ from typing import Any
 
 from loguru import logger
 
-from xiaobo_task import Target, AsyncXiaoboTask
+from xiaobo_task import Target, AsyncXiaoboTask, write_txt_file
 
 APPNAME = "XiaoboTaskAsyncExample"
 FILENAME = 'example'
@@ -37,16 +37,23 @@ async def example_async_task_processor(target: Target):
 def on_task_success(target: Target, result: Any):
     """任务成功完成时的回调函数。"""
     target.logger.info(f"成功回调 [数据: {target.data[0]}] -> 结果: {result}")
+    # 保存成功信息
+    # write_txt_file('example_success', result)
 
 
-def on_task_error(target: Target, error: Exception):
+async def on_task_error(target: Target, error: Exception):
     """任务失败时的回调函数（所有重试都用完后才会调用）。"""
+    await asyncio.sleep(1)  # 模拟阻塞，测试wait是否等待回调函数
     target.logger.error(f"失败回调 [数据: {target.data[0]}] -> 最终异常: {error.__class__.__name__}: {error}")
+    # 保存失败信息
+    # write_txt_file('example_error.txt', target.data)
 
 
 def on_task_cancel(target: Target):
     """任务被取消时的回调函数。"""
     target.logger.warning(f"取消回调 [数据: {target.data[0]}]")
+    # 保存取消的信息
+    # write_txt_file('example_cancel', target.data)
 
 
 async def main():
@@ -61,7 +68,7 @@ async def main():
 
         await task_manager.wait()
 
-        task_manager.statistics()
+        await task_manager.statistics()
 
     logger.info("--- 所有任务已执行完毕 ---")
 
