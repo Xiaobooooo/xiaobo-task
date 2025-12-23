@@ -8,6 +8,12 @@ import sys
 from dotenv import load_dotenv
 from loguru import logger
 
+from .domain import Target
+from .exceptions import TaskFailed
+from .facade import XiaoboTask, AsyncXiaoboTask
+from .manager import TaskManager, AsyncTaskManager
+from .util import read_txt_file_lines, write_txt_file, get_session, get_async_session
+
 # 自动加载 .env 文件
 load_dotenv()
 
@@ -22,18 +28,14 @@ logger.add(
 )
 logger.configure(extra={"name": "MainApp"})
 
-# --- 公开接口 ---
-# 从子模块中导入核心类和函数，以便用户直接从包顶级导入
-from .domain import Target
-from .manager import  TaskManager, AsyncTaskManager
-from .facade import XiaoboTask, AsyncXiaoboTask
-from .util import read_txt_file_lines, write_txt_file, get_session, get_async_session
+__version__ = '1.0.3'
 
 # 定义当 `from task_framework import *` 时要导入的名称
 __all__ = [
     'Target',
     'TaskManager',
     'AsyncTaskManager',
+    'TaskFailed',
     'XiaoboTask',
     'AsyncXiaoboTask',
     'read_txt_file_lines',

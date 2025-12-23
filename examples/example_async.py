@@ -5,7 +5,7 @@ from typing import Any
 
 from loguru import logger
 
-from xiaobo_task import Target, AsyncXiaoboTask, write_txt_file
+from xiaobo_task import Target, AsyncXiaoboTask, write_txt_file, TaskFailed
 
 APPNAME = "XiaoboTaskAsyncExample"
 FILENAME = 'example'
@@ -20,6 +20,9 @@ async def example_async_task_processor(target: Target):
 
     sleep_time = random.uniform(1, 3)
     await asyncio.sleep(sleep_time)
+
+    if target.data in ["data-6"]:
+        raise TaskFailed("任务失败，不进行重试")
 
     # 为了演示重试，我们让 'data-3' 和 'data-7' 任务总是失败
     if target.data[0] in ["data-3", "data-7"]:

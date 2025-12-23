@@ -4,7 +4,7 @@ import random
 from typing import Any
 
 from loguru import logger
-from xiaobo_task import XiaoboTask, Target
+from xiaobo_task import XiaoboTask, Target, TaskFailed
 
 APPNAME = "XiaoboTaskExample"
 
@@ -18,6 +18,9 @@ def example_task_processor(target: Target):
 
     sleep_time = random.uniform(1, 3)
     time.sleep(sleep_time)
+
+    if target.data in ["data-6"]:
+        raise TaskFailed("任务失败，不进行重试")
 
     # 为了演示重试，我们让 'data-3' 和 'data-7' 任务总是失败
     if target.data in ["data-3", "data-7"]:

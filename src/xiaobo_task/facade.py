@@ -11,11 +11,13 @@ from concurrent.futures import Future
 from typing import Optional, Callable, Any, List, Union, Type, Awaitable, overload
 
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_fixed
+from tenacity import retry_if_not_exception_type, stop_after_attempt, wait_fixed, retry
 
 from xiaobo_task import util
 from xiaobo_task.domain import Target
+from xiaobo_task.exceptions import TaskFailed
 from xiaobo_task.manager import BaseTaskManager, TaskManager, AsyncTaskManager
+from xiaobo_task.proxy_pool import ProxyPool
 from xiaobo_task.settings import Settings
 
 
@@ -42,6 +44,15 @@ class BaseTask(ABC):
 
         # 初始化简化的 TaskManager
         self._manager = task_manager_cls(self.settings.max_workers)
+
+        self._proxy_pool = ProxyPool(
+            self.settings.proxy,
+            self.settings.proxy_ipv6,
+            self.settings.proxy_api,
+            self.settings.proxy_ipv6_api,
+            self.settings.use_proxy_ipv6,
+            self.settings.disable_proxy
+        )
 
         # 记录加载的配置信息
         self._log_settings()
@@ -110,13 +121,7 @@ class BaseTask(ABC):
 
             data_preview = str(item[0]) if isinstance(item, (list, tuple)) else item
 
-            proxy = None
-            if not self.settings.disable_proxy:
-                p = self.settings.proxy_ipv6 if self.settings.use_proxy_ipv6 and self.settings.proxy_ipv6 else self.settings.proxy
-                if p:
-                    proxy = p.replace('*****', data_preview)
-
-            target = Target(index=index, data=item, data_preview=data_preview, proxy=proxy, logger=task_logger)
+            target = Target(index=index, data=item, data_preview=data_preview, logger=task_logger)
 
             self.submit_task(
                 task_func=task_func,
@@ -373,6 +378,7 @@ class XiaoboTask(BaseTask):
                     )
 
             @retry(
+                retry=retry_if_not_exception_type(TaskFailed),
                 stop=stop_after_attempt(effective_retries + 1),
                 wait=wait_fixed(effective_retry_delay) if effective_retry_delay > 0 else None,
                 before_sleep=log_before_retry,
@@ -382,12 +388,15 @@ class XiaoboTask(BaseTask):
                 attempt_counter["n"] += 1
                 if target and target.logger:
                     target.logger.info(f"🚀 [{target.data_preview}]第 {attempt_counter['n']} 次运行")
+                # 每次重试提供新的代理
+                proxy = self._proxy_pool.get_proxy(replacement=f'{target.data_preview}({attempt_counter["n"]})')
+                target.proxy = proxy
                 return task_func(target)
 
             return task_to_run()
 
         # --- 包装结束 ---
-        future = self._manager.submit_task(
+        self._manager.submit_task(
             task_func=_wrapped_task_executor,
             target=target,
             on_success=on_task_success,
@@ -538,6 +547,7 @@ class AsyncXiaoboTask(BaseTask):
                     )
 
             @retry(
+                retry=retry_if_not_exception_type(TaskFailed),
                 stop=stop_after_attempt(effective_retries + 1),
                 wait=wait_fixed(effective_retry_delay) if effective_retry_delay > 0 else None,
                 before_sleep=log_before_retry,
@@ -547,12 +557,15 @@ class AsyncXiaoboTask(BaseTask):
                 attempt_counter["n"] += 1
                 if target and target.logger:
                     target.logger.info(f"🚀 [{target.data_preview}]第 {attempt_counter['n']} 次运行")
+                # 每次重试提供新的代理
+                proxy = self._proxy_pool.get_proxy(replacement=f'{target.data_preview}({attempt_counter["n"]})')
+                target.proxy = proxy
                 return await task_func(target)
 
             return await task_to_run()
 
         # --- 包装结束 ---
-        task = self._manager.submit_task(
+        self._manager.submit_task(
             task_func=_wrapped_task_executor,
             target=target,
             on_success=on_task_success,

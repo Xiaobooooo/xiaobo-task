@@ -5,7 +5,7 @@ from abc import abstractmethod, ABC
 from asyncio import Task
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor, Future, CancelledError
-from typing import Callable, Any, Optional, overload, List, Awaitable
+from typing import Callable, Any, Optional, overload, Awaitable
 
 from xiaobo_task.domain import Target
 

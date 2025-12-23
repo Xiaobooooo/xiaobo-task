@@ -2,7 +2,6 @@
 """
 通用工具模块
 """
-import asyncio
 import threading
 from typing import List, Optional
 from pathlib import Path
@@ -11,8 +10,6 @@ import sys
 from curl_cffi import BrowserTypeLiteral, Session, AsyncSession
 from curl_cffi.requests.impersonate import DEFAULT_CHROME
 
-# 使用线程本地存储为每个线程维护一个独立的事件循环
-_thread_local = threading.local()
 # 进程内文件锁表，避免多线程写同一文件时竞争
 _thread_file_locks: dict[Path, threading.Lock] = {}
 _file_locks_guard = threading.Lock()
@@ -28,13 +25,6 @@ def _resolve_txt_path(filename: str) -> Path:
         entry_dir = Path(sys.argv[0]).resolve().parent
         path = entry_dir / path
     return path
-
-
-def get_or_create_event_loop() -> asyncio.AbstractEventLoop:
-    """获取或创建当前线程的事件循环。"""
-    if not hasattr(_thread_local, "loop"):
-        _thread_local.loop = asyncio.new_event_loop()
-    return _thread_local.loop
 
 
 def read_txt_file_lines(filename: str) -> List[str]:

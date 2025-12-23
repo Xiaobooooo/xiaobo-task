@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     # --- 代理配置 ---
     proxy: Optional[str] = Field(default=None, description="代理")
     proxy_ipv6: Optional[str] = Field(default=None, description="IPv6代理")
+    proxy_api: Optional[str] = Field(default=None, description="代理API地址")
+    proxy_ipv6_api: Optional[str] = Field(default=None, description="IPv6代理API地址")
     use_proxy_ipv6: bool = Field(default=False, description="使用IPv6代理")
     disable_proxy: bool = Field(default=False, description="禁用代理")
 
