@@ -3,6 +3,7 @@ import inspect
 import os
 import random
 import threading
+import time
 import traceback
 from abc import ABC, abstractmethod
 from asyncio import Task
@@ -362,6 +363,14 @@ class XiaoboTask(BaseTask):
             if on_error:
                 on_error(t, error)
 
+        def _refresh_proxy(replacement: Optional[str] = None, use_proxy_ipv6: bool = False):
+            replacement_text = (replacement if replacement is not None else f'{target.data_preview}({time.time()})')
+            proxy = self._proxy_pool.get_proxy(replacement=replacement_text, _use_proxy_ipv6=use_proxy_ipv6)
+            target.proxy = proxy
+            return proxy
+
+        target.refresh_proxy = _refresh_proxy
+
         effective_retries = retries if retries is not None else self.settings.retries
         effective_retry_delay = retry_delay if retry_delay is not None else self.settings.retry_delay
 
@@ -389,8 +398,7 @@ class XiaoboTask(BaseTask):
                 if target and target.logger:
                     target.logger.info(f"🚀 [{target.data_preview}]第 {attempt_counter['n']} 次运行")
                 # 每次重试提供新的代理
-                proxy = self._proxy_pool.get_proxy(replacement=f'{target.data_preview}({attempt_counter["n"]})')
-                target.proxy = proxy
+                _refresh_proxy(replacement=f'{target.data_preview}({attempt_counter["n"]})')
                 return task_func(target)
 
             return task_to_run()
@@ -530,6 +538,14 @@ class AsyncXiaoboTask(BaseTask):
             if on_error:
                 await _run_callback(on_error, t, error)
 
+        def _refresh_proxy(replacement: Optional[str] = None, use_proxy_ipv6: bool = False):
+            replacement_text = (replacement if replacement is not None else f'{target.data_preview}({time.time()})')
+            proxy = self._proxy_pool.get_proxy(replacement=replacement_text, _use_proxy_ipv6=use_proxy_ipv6)
+            target.proxy = proxy
+            return proxy
+
+        target.refresh_proxy = _refresh_proxy
+
         effective_retries = retries if retries is not None else self.settings.retries
         effective_retry_delay = retry_delay if retry_delay is not None else self.settings.retry_delay
 
@@ -558,8 +574,7 @@ class AsyncXiaoboTask(BaseTask):
                 if target and target.logger:
                     target.logger.info(f"🚀 [{target.data_preview}]第 {attempt_counter['n']} 次运行")
                 # 每次重试提供新的代理
-                proxy = self._proxy_pool.get_proxy(replacement=f'{target.data_preview}({attempt_counter["n"]})')
-                target.proxy = proxy
+                _refresh_proxy(replacement=f'{target.data_preview}({attempt_counter["n"]})')
                 return await task_func(target)
 
             return await task_to_run()

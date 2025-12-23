@@ -25,3 +25,7 @@ class Target:
     data_preview: str
     logger: Optional["Logger"] = None
     proxy: Optional[str] = None
+
+    def refresh_proxy(self):
+        return self.proxy
+
