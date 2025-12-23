@@ -15,15 +15,30 @@ _thread_file_locks: dict[Path, threading.Lock] = {}
 _file_locks_guard = threading.Lock()
 
 
-def _resolve_txt_path(filename: str) -> Path:
-    """补全 .txt 后缀并将相对路径定位到脚本入口所在的目录。"""
+def _resolve_txt_path(filename: str, create_file: bool = False) -> Path:
+    """补全 .txt 后缀并将相对路径定位到脚本目录，缺失时回退到脚本父目录同级 data 目录。"""
     if not filename.lower().endswith('.txt'):
         filename += '.txt'
 
     path = Path(filename)
     if not path.is_absolute():
         entry_dir = Path(sys.argv[0]).resolve().parent
-        path = entry_dir / path
+        primary = entry_dir / path
+        if primary.exists():
+            path = primary
+        else:
+            data_dir = entry_dir.parent / 'data'
+            candidate = data_dir / path
+            if candidate.exists():
+                path = candidate
+            else:
+                if create_file:
+                    data_dir.mkdir(parents=True, exist_ok=True)
+                    path = candidate
+                else:
+                    raise FileNotFoundError(
+                        f"错误：文件未找到，已尝试 '{primary}' 与 '{candidate}'。"
+                    )
     return path
 
 
@@ -33,6 +48,7 @@ def read_txt_file_lines(filename: str) -> List[str]:
 
     功能:
     - 如果文件名没有 .txt 后缀(不区分大小写)，会自动补全。
+    - 优先读取脚本目录下的文件；不存在则读取脚本父目录同级的 data 目录。
     - 按行读取文件，并去除每行两侧的空白字符（包括换行符）。
     - 返回一个包含文件中所有非空行的字符串列表。
 
@@ -49,7 +65,7 @@ def read_txt_file_lines(filename: str) -> List[str]:
             lines = [line.strip() for line in f if line.strip()]
         return lines
     except FileNotFoundError:
-        raise FileNotFoundError(f"错误：文件 '{path}' 未找到。")
+        raise FileNotFoundError(f"读取文件 '{path}' 时发生错误: 未找到文件")
     except Exception as e:
         raise IOError(f"读取文件 '{path}' 时发生错误: {e}")
 
@@ -60,6 +76,7 @@ def write_txt_file(filename: str, data: str | List[str], append: bool = True, se
 
     功能:
     - 自动补全 .txt 后缀（不区分大小写）。
+    - 优先写入/追加脚本目录下的文件；不存在则写入脚本父目录同级的 data 目录。
     - data 支持字符串或字符串列表，列表会用分隔符拼接后写入。
     - append 为 True 时追加写入，否则覆盖写入，默认 True。
     - separator 控制列表拼接时的分隔符，默认 "----"。
@@ -69,7 +86,7 @@ def write_txt_file(filename: str, data: str | List[str], append: bool = True, se
     :param append: 是否追加写入。
     :param separator: data 为列表时的拼接分隔符。
     """
-    path = _resolve_txt_path(filename)
+    path = _resolve_txt_path(filename, create_file=True)
     lock = _get_thread_lock(path)
 
     text = separator.join(data) if isinstance(data, list) else str(data)
@@ -78,6 +95,7 @@ def write_txt_file(filename: str, data: str | List[str], append: bool = True, se
 
     mode = 'a' if append else 'w'
     with lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, mode, encoding='utf-8') as f:
             f.write(text)
 

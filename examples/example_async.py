@@ -5,7 +5,7 @@ from typing import Any
 
 from loguru import logger
 
-from xiaobo_task import Target, AsyncXiaoboTask, write_txt_file, TaskFailed
+from xiaobo_task import Target, AsyncXiaoboTask, TaskFailed
 
 APPNAME = "XiaoboTaskAsyncExample"
 FILENAME = 'example'
