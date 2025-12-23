@@ -363,7 +363,7 @@ class XiaoboTask(BaseTask):
             if on_error:
                 on_error(t, error)
 
-        def _refresh_proxy(replacement: Optional[str] = None, use_proxy_ipv6: bool = False):
+        def _refresh_proxy(replacement: Optional[str] = None, use_proxy_ipv6: Optional[bool] = None):
             replacement_text = (replacement if replacement is not None else f'{target.data_preview}({time.time()})')
             proxy = self._proxy_pool.get_proxy(replacement=replacement_text, _use_proxy_ipv6=use_proxy_ipv6)
             target.proxy = proxy
@@ -538,7 +538,7 @@ class AsyncXiaoboTask(BaseTask):
             if on_error:
                 await _run_callback(on_error, t, error)
 
-        def _refresh_proxy(replacement: Optional[str] = None, use_proxy_ipv6: bool = False):
+        def _refresh_proxy(replacement: Optional[str] = None, use_proxy_ipv6: Optional[bool] = None):
             replacement_text = (replacement if replacement is not None else f'{target.data_preview}({time.time()})')
             proxy = self._proxy_pool.get_proxy(replacement=replacement_text, _use_proxy_ipv6=use_proxy_ipv6)
             target.proxy = proxy

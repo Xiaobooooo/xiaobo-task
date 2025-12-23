@@ -147,5 +147,4 @@ class ProxyPool:
             if api_proxy:
                 return api_proxy.replace(placeholder, replacement)
 
-        logger.warning("无可用代理")
         return None
