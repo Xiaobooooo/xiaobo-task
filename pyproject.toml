@@ -3,7 +3,7 @@ name = "xiaobo-task"
 version = "1.0.3"
 description = "自用多线程任务模块"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "curl-cffi>=0.13.0",
     "loguru>=0.7.3",
