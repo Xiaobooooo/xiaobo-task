@@ -308,7 +308,7 @@ class XiaoboTask(BaseTask):
 
         header = f"成功: {success}   取消: {cancel}   失败: {error}"
         if errors:
-            header += f"\n<red>{"\n".join(errors)}</red>"
+            header += f"\n<red>{'\n'.join(errors)}</red>"
         self.logger.opt(colors=True).info(header)
 
     def submit_task(
