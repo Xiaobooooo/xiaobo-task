@@ -28,7 +28,7 @@ logger.add(
 )
 logger.configure(extra={"name": "MainApp"})
 
-__version__ = '1.0.3'
+__version__ = '1.0.4'
 
 # 定义当 `from task_framework import *` 时要导入的名称
 __all__ = [
