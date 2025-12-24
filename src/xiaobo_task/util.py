@@ -27,7 +27,10 @@ def _resolve_txt_path(filename: str, create_file: bool = False) -> Path:
         if primary.exists():
             path = primary
         else:
-            data_dir = entry_dir.parent / 'data'
+            base_dir = entry_dir.parent
+            if 'xiaobo-task' in base_dir.name:
+                base_dir = base_dir.parent
+            data_dir = base_dir / 'data'
             candidate = data_dir / path
             if candidate.exists():
                 path = candidate
