@@ -116,6 +116,8 @@ class BaseTask(ABC):
             self.logger.warning("任务数量必须大于 0。")
             return
 
+        self.logger.info(f"本次提交 {len(items)} 个任务")
+
         for index, item in enumerate(items):
             task_name = f"{index + 1:05d}"
             task_logger = self.logger.bind(name=task_name)
@@ -157,8 +159,8 @@ class BaseTask(ABC):
             return
 
         self.submit_tasks(
-            source=source_list,
             task_func=task_func,
+            source=source_list,
             on_success=on_success,
             on_error=on_error,
             on_cancel=on_cancel,
@@ -301,16 +303,10 @@ class XiaoboTask(BaseTask):
 
     def statistics(self):
         with self._stats_lock:
-            success_count = self._stats["success"]
-            cancel_count = self._stats["cancel"]
-            error_count = self._stats["error"]
-            errors = self._errors
-
-        header = f"成功: {success_count}   取消: {cancel_count}   失败: {error_count}"
-        if errors:
-            error = '\n'.join(errors)
-            header += f"\n<red>{error}</red>"
-        self.logger.opt(colors=True).info(header)
+            self.logger.opt(colors=True).info(
+                "成功: {}   取消: {}   失败: {}\n<red>{}</red>",
+                self._stats["success"], self._stats["cancel"], self._stats["error"], '\n'.join(self._errors)
+            )
 
     def submit_task(
             self,
@@ -472,16 +468,10 @@ class AsyncXiaoboTask(BaseTask):
 
     async def statistics(self):
         async with self._stats_lock:
-            success_count = self._stats["success"]
-            cancel_count = self._stats["cancel"]
-            error_count = self._stats["error"]
-            errors = self._errors
-
-        header = f"成功: {success_count}   取消: {cancel_count}   失败: {error_count}"
-        if errors:
-            error = '\n'.join(errors)
-            header += f"\n<red>{error}</red>"
-        self.logger.opt(colors=True).info(header)
+            self.logger.opt(colors=True).info(
+                "成功: {}   取消: {}   失败: {}\n<red>{}</red>",
+                self._stats["success"], self._stats["cancel"], self._stats["error"], '\n'.join(self._errors)
+            )
 
     def submit_task(
             self,
