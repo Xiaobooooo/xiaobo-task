@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from typing import Optional
+import queue
 import re
+import threading
 import time
 
 from loguru import logger
@@ -28,8 +30,25 @@ class ProxyPool:
         self.proxy_ipv6_api = proxy_ipv6_api
         self.use_proxy_ipv6 = use_proxy_ipv6
         self.disable_proxy = disable_proxy
-        self._proxy_cache = {}  # {proxy: expiry_time}
+        self._proxy_queue: "queue.Queue[tuple[str, float]]" = queue.Queue()
         self._cache_ttl = 180  # 3 minutes in seconds
+        self._fetch_lock = threading.Lock()
+
+    def _dequeue_proxy(self) -> Optional[str]:
+        """
+        从队列中取出未过期的代理
+
+        Returns:
+            可用代理字符串，队列为空或全部过期返回None
+        """
+        while True:
+            try:
+                proxy, expiry = self._proxy_queue.get_nowait()
+            except queue.Empty:
+                return None
+
+            if expiry > time.time():
+                return proxy
 
     @staticmethod
     def _extract_proxies(text: str) -> list[str]:
@@ -64,7 +83,7 @@ class ProxyPool:
     def _get_proxy_from_api(self, api_url: str) -> Optional[str]:
         """
         从API获取代理，带3分钟缓存有效期
-        每个代理只使用一次，使用后从缓存中删除
+        每个代理只使用一次，使用后从队列中删除
 
         Args:
             api_url: 代理API地址
@@ -72,43 +91,37 @@ class ProxyPool:
         Returns:
             可用的代理字符串，失败返回None
         """
-        # 清理过期的缓存
-        current_time = time.time()
-        expired_proxies = [
-            proxy for proxy, expiry in self._proxy_cache.items()
-            if expiry <= current_time
-        ]
-        for proxy in expired_proxies:
-            del self._proxy_cache[proxy]
-
-        # 如果缓存中有可用代理，直接返回（使用后删除）
-        if self._proxy_cache:
-            proxy = next(iter(self._proxy_cache.keys()))
-            del self._proxy_cache[proxy]
+        # 队列中有可用代理，直接返回
+        proxy = self._dequeue_proxy()
+        if proxy:
             return proxy
 
-        try:
-            # 通过API获取代理列表
-            response = requests.get(api_url, timeout=10)
-            current_time = time.time()
-            # 使用正则解析响应，提取代理
-            proxies = self._extract_proxies(response.text)
-            if not proxies:
-                logger.error(f"未从API中解析到代理，响应: {response.text}")
+        with self._fetch_lock:
+            # 双重检查，避免并发重复请求API
+            proxy = self._dequeue_proxy()
+            if proxy:
+                return proxy
+
+            try:
+                # 通过API获取代理列表
+                response = requests.get(api_url, timeout=10)
+                current_time = time.time()
+                # 使用正则解析响应，提取代理
+                proxies = self._extract_proxies(response.text)
+                if not proxies:
+                    logger.error(f"未从API中解析到代理，响应: {response.text}")
+                    return None
+
+                # 将提取到的代理按顺序加入队列（设置3分钟有效期）
+                expiry = current_time + self._cache_ttl
+                for proxy in proxies:
+                    self._proxy_queue.put((proxy, expiry))
+
+                return self._dequeue_proxy()
+
+            except Exception as e:
+                logger.error(f"API获取代理失败: {repr(e)}")
                 return None
-
-            # 缓存所有提取到的代理（设置3分钟有效期）
-            for proxy in proxies:
-                self._proxy_cache[proxy] = current_time + self._cache_ttl
-
-            # 取出第一个代理并从缓存中删除（单次使用）
-            first_proxy = proxies[0]
-            del self._proxy_cache[first_proxy]
-            return first_proxy
-
-        except Exception as e:
-            logger.error(f"API获取代理失败: {repr(e)}")
-            return None
 
     def get_proxy(self, placeholder: str = '*****', replacement: str = '', _use_proxy_ipv6: Optional[bool] = None) -> Optional[str]:
         """
@@ -128,6 +141,8 @@ class ProxyPool:
 
         # 确定使用哪种代理类型
         use_ipv6 = _use_proxy_ipv6 if _use_proxy_ipv6 is not None else self.use_proxy_ipv6
+        if use_ipv6 and not self.proxy_ipv6 and not self.proxy_ipv6_api:
+            use_ipv6 = False
 
         # 选择对应的代理配置
         if use_ipv6:
