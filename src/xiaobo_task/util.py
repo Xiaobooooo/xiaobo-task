@@ -228,6 +228,24 @@ def parse_cloudflare_error(html_text: str) -> Optional[str]:
         if msg_match:
             error_message = msg_match.group(1).strip()
 
+    # Pattern 3: Blocked page - "Sorry, you have been blocked"
+    if not error_message:
+        block_match = re.search(
+            r'<h1[^>]*data-translate="block_headline"[^>]*>([^<]+)</h1>', html_text
+        )
+        if block_match:
+            error_message = block_match.group(1).strip()
+            # Try to extract subheadline: "You are unable to access xxx.com"
+            subheadline_match = re.search(
+                r'<h2[^>]*class="cf-subheadline"[^>]*>\s*<span[^>]*>([^<]+)</span>\s*([^\s<]+)',
+                html_text,
+            )
+            if subheadline_match:
+                access_text = subheadline_match.group(1).strip()
+                domain = subheadline_match.group(2).strip()
+                if access_text and domain:
+                    error_message = f"{error_message} ({access_text} {domain})"
+
     if error_code and error_message:
         return f"Cloudflare Error Code {error_code} - {error_message}"
     if error_code:
