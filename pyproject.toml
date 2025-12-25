@@ -1,6 +1,6 @@
 [project]
 name = "xiaobo-task"
-version = "1.0.4"
+version = "1.0.5"
 description = "自用多线程任务模块"
 readme = "README.md"
 requires-python = ">=3.10"
