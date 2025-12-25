@@ -2,12 +2,15 @@
 """
 通用工具模块
 """
+import json
+import re
 import threading
-from typing import List, Optional
+from typing import List, Optional, NoReturn
 from pathlib import Path
 import sys
 
-from curl_cffi import BrowserTypeLiteral, Session, AsyncSession
+from curl_cffi import BrowserTypeLiteral, Session, AsyncSession, Response
+from curl_cffi.requests.exceptions import HTTPError
 from curl_cffi.requests.impersonate import DEFAULT_CHROME
 
 # 进程内文件锁表，避免多线程写同一文件时竞争
@@ -43,6 +46,16 @@ def _resolve_txt_path(filename: str, create_file: bool = False) -> Path:
                         f"错误：文件未找到，已尝试 '{primary}' 与 '{candidate}'。"
                     )
     return path
+
+
+def _get_thread_lock(path: Path) -> threading.Lock:
+    """为目标路径获取/创建一个进程内线程锁。"""
+    with _file_locks_guard:
+        lock = _thread_file_locks.get(path)
+        if lock is None:
+            lock = threading.Lock()
+            _thread_file_locks[path] = lock
+        return lock
 
 
 def read_txt_file_lines(filename: str) -> List[str]:
@@ -111,11 +124,114 @@ def get_async_session(proxy: str = None, timeout: int = 30, impersonate: Optiona
     return AsyncSession(proxy=proxy, timeout=timeout, impersonate=impersonate)
 
 
-def _get_thread_lock(path: Path) -> threading.Lock:
-    """为目标路径获取/创建一个进程内线程锁。"""
-    with _file_locks_guard:
-        lock = _thread_file_locks.get(path)
-        if lock is None:
-            lock = threading.Lock()
-            _thread_file_locks[path] = lock
-        return lock
+def json_get(data: dict | list, path: str, default=None):
+    """
+    通过keys拼接的字符串路径获取dict/list中的值。
+
+    :param data: 要查询的字典或列表
+    :param path: 用 "/" 分隔的路径字符串，支持数组索引
+    :param default: 路径不存在时返回的默认值
+    :return: 路径对应的值，或默认值
+
+    示例:
+        data = {"a": [2, 5, 7], "b": {"c": "hello"}}
+        json_get(data, "a/0")  # 返回 2
+        json_get(data, "a/2")  # 返回 7
+        json_get(data, "b/c")  # 返回 "hello"
+    """
+    if not path:
+        return data
+
+    keys = path.split('/')
+    current = data
+
+    for key in keys:
+        if isinstance(current, dict):
+            if key not in current:
+                return default
+            current = current[key]
+        elif isinstance(current, list):
+            try:
+                index = int(key)
+                if index < 0 or index >= len(current):
+                    return default
+                current = current[index]
+            except (ValueError, IndexError):
+                return default
+        else:
+            return default
+
+    return current
+
+
+def raise_response_error(name: str, response: Response, msg_key: Optional[str] = None) -> NoReturn:
+    error_message = None
+    content_type = response.headers.get('Content-Type', "").lower()
+    if 'application/json' in content_type or '+json' in content_type:
+        try:
+            data = response.json()
+            if msg_key:
+                error_message = json_get(data, msg_key)
+            if not error_message:
+                error_message = (
+                        data.get('message') or
+                        data.get('msg') or
+                        data.get('error') or
+                        data.get('error_message') or
+                        data.get('error_msg')
+                )
+        except json.JSONDecodeError:
+            pass
+    elif 'text/html' in content_type:
+        if response.text.lstrip().startswith('<'):
+            if 'cf-error-details' not in response.text:
+                raise HTTPError(f'{name}: {response.status_code} - 响应HTML', response=response)
+            error_message = parse_cloudflare_error(response.text)
+    if error_message:
+        raise HTTPError(f'{name}: {error_message}', response=response)
+    raise HTTPError(f'{name}: {response.status_code} - {response.text}', response=response)
+
+
+def parse_cloudflare_error(html_text: str) -> Optional[str]:
+    if not html_text:
+        return None
+
+    error_code = None
+    error_message = None
+
+    # Pattern 1: 5xx errors - "Error code XXX" in code-label span
+    code_match = re.search(r'<span class="code-label">Error code (\d+)</span>', html_text)
+    if code_match:
+        error_code = code_match.group(1)
+
+    # Pattern 2: 1xxx errors - Error followed by code in separate spans
+    if not error_code:
+        code_match = re.search(
+            r'<span[^>]*data-translate="error"[^>]*>Error</span>\s*<span>(\d+)</span>',
+            html_text,
+        )
+        if code_match:
+            error_code = code_match.group(1)
+
+    # Message pattern 1: 5xx - inline-block span in h1
+    msg_match = re.search(
+        r'<h1[^>]*>.*?<span class="inline-block">([^<]+)</span>', html_text, re.DOTALL
+    )
+    if msg_match:
+        error_message = msg_match.group(1).strip()
+
+    # Message pattern 2: 1xxx - h2 with text-gray-600 class
+    if not error_message:
+        msg_match = re.search(
+            r'<h2\s+class="text-gray-600[^"]*"[^>]*>\s*([^<]+)\s*</h2>', html_text
+        )
+        if msg_match:
+            error_message = msg_match.group(1).strip()
+
+    if error_code and error_message:
+        return f"Cloudflare Error Code {error_code} - {error_message}"
+    if error_code:
+        return f"Cloudflare Error Code {error_code}"
+    if error_message:
+        return f"Cloudflare Error - {error_message}"
+    return None

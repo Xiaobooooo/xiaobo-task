@@ -12,7 +12,33 @@ from .domain import Target
 from .exceptions import TaskFailed
 from .facade import XiaoboTask, AsyncXiaoboTask
 from .manager import TaskManager, AsyncTaskManager
-from .util import read_txt_file_lines, write_txt_file, get_session, get_async_session
+from .util import (
+    read_txt_file_lines,
+    write_txt_file,
+    get_session,
+    get_async_session,
+    raise_response_error,
+    parse_cloudflare_error,
+    json_get,
+)
+
+__version__ = '1.0.4'
+
+__all__ = [
+    'Target',
+    'TaskManager',
+    'AsyncTaskManager',
+    'TaskFailed',
+    'XiaoboTask',
+    'AsyncXiaoboTask',
+    'read_txt_file_lines',
+    'write_txt_file',
+    'get_session',
+    'get_async_session',
+    'raise_response_error',
+    'parse_cloudflare_error',
+    'json_get',
+]
 
 # 自动加载 .env 文件
 load_dotenv()
@@ -27,19 +53,3 @@ logger.add(
     backtrace=False
 )
 logger.configure(extra={"name": "MainApp"})
-
-__version__ = '1.0.4'
-
-# 定义当 `from task_framework import *` 时要导入的名称
-__all__ = [
-    'Target',
-    'TaskManager',
-    'AsyncTaskManager',
-    'TaskFailed',
-    'XiaoboTask',
-    'AsyncXiaoboTask',
-    'read_txt_file_lines',
-    'write_txt_file',
-    'get_session',
-    'get_async_session',
-]
