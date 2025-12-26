@@ -41,7 +41,7 @@ class BaseTask(ABC):
         filtered_kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
         # 使用 pydantic-settings 加载配置，并允许通过参数覆盖
-        self.settings = Settings(**filtered_kwargs)
+        self.settings = Settings(task_name=name, **filtered_kwargs)
 
         # 初始化简化的 TaskManager
         self._manager = task_manager_cls(self.settings.max_workers)
@@ -64,11 +64,13 @@ class BaseTask(ABC):
     def _log_settings(self):
         """以中文格式，逐行记录加载的配置信息，并处理中文字符对齐。"""
 
-        self.logger.info("--- 任务配置加载开始 ---")
+        self.logger.info("--- 任务配置 ---")
 
         # 遍历 pydantic 模型的字段以获取描述和值
         for field_name, field_info in self.settings.model_fields.items():
-            description = field_info.description or field_name
+            if not field_info.description:
+                continue
+            description = field_info.description
             value = getattr(self.settings, field_name)
 
             # 对特殊值进行友好显示
@@ -81,7 +83,7 @@ class BaseTask(ABC):
 
             self.logger.info(f"{description}: {value_str}")
 
-        self.logger.info("--- 配置加载完毕 ---")
+        self.logger.info("--- 任务配置 ---")
 
     def submit_tasks(
             self,

@@ -60,7 +60,7 @@ def on_task_cancel(target: Target):
 
 
 async def main():
-    async with AsyncXiaoboTask(APPNAME, shuffle=False, retries=1) as task_manager:
+    async with AsyncXiaoboTask(APPNAME, retries=1) as task_manager:
         task_manager.submit_tasks_from_file(
             task_func=example_async_task_processor,
             filename=FILENAME,

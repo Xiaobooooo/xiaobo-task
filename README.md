@@ -142,34 +142,41 @@ task_manager.submit_tasks_from_file(
 
 配置默认从 `.env` / 环境变量加载，大小写不敏感，空字符串会自动回退到默认值。
 
+**布尔值支持多种格式**：`true/false`、`1/0`、`on/off`、`yes/no`、`y/n`
+
+**按任务名匹配**：`SHUFFLE`、`USE_PROXY_IPV6`、`DISABLE_PROXY` 支持 `task1&task2` 格式，仅对指定任务名生效。
+
 可用配置项如下：
 
-| 配置项              | 默认值     | 说明                                                                |
-|------------------|---------|-------------------------------------------------------------------|
-| `MAX_WORKERS`    | `5`     | 最大线程数                                                             |
-| `SHUFFLE`        | `false` | 是否打乱任务顺序                                                          |
-| `RETRIES`        | `2`     | 重试次数（抛出 `TaskFailed` 不重试）                                         |
-| `RETRY_DELAY`    | `0`     | 重试延迟（秒）                                                           |
-| `PROXY`          | *(空)*   | IPv4 代理，支持 `host:port` / `user:pass@host:port` / `protocol://...` |
-| `PROXY_IPV6`     | *(空)*   | IPv6 代理                                                           |
-| `PROXY_API`      | *(空)*   | IPv4 代理 API 地址                                                    |
-| `PROXY_IPV6_API` | *(空)*   | IPv6 代理 API 地址                                                    |
-| `USE_PROXY_IPV6` | `false` | 是否优先使用 IPv6 代理                                                    |
-| `DISABLE_PROXY`  | `false` | 是否禁用代理                                                            |
+| 配置项              | 默认值     | 说明                                                                       |
+|------------------|---------|--------------------------------------------------------------------------|
+| `MAX_WORKERS`    | `5`     | 最大线程数                                                                    |
+| `PROXY`          | *(空)*   | 代理，支持 `host:port` / `user:pass@host:port`，占位符 `*****` 自动替换为 index 或第一位数据 |
+| `PROXY_IPV6`     | *(空)*   | IPv6 代理，格式同 `PROXY`                                                      |
+| `PROXY_API`      | *(空)*   | 代理提取 API 地址（一行一个）                                                        |
+| `PROXY_IPV6_API` | *(空)*   | IPv6 代理提取 API 地址                                                         |
+| `RETRIES`        | `2`     | 重试次数（抛出 `TaskFailed` 不重试）                                                |
+| `RETRY_DELAY`    | `0`     | 重试延迟（秒）                                                                  |
+| `SHUFFLE`        | `false` | 是否打乱任务顺序，支持布尔值或任务名称，多个任务用&拼接，如： `task1&task2`                                         |
+| `USE_PROXY_IPV6` | `false` | 是否优先使用 IPv6 代理，支持布尔值或任务名称，多个任务用&拼接，如： `task1&task2`                      |
+| `DISABLE_PROXY`  | `false` | 是否禁用代理，支持布尔值或任务名称，多个任务用&拼接，如：`task1&task2`                               |
 
 示例 `.env`：
 
 ```dotenv
-MAX_WORKERS=5
-SHUFFLE=false
+# 布尔值支持: true/false 1/0 on/off yes/no y/n
+MAX_WORKERS=8
+# 代理格式: host:port 或 user:pass@host:port，占位符 ***** 会自动替换
+PROXY=abc.com:123
+PROXY_IPV6=ipv6.abc.com:123
+# 代理提取 API（一行一个）
+PROXY_API=https://abc.com/proxies
+PROXY_IPV6_API=https://abc.com/ipv6/proxies
 RETRIES=2
 RETRY_DELAY=0
-PROXY=
-PROXY_IPV6=
-PROXY_API=
-PROXY_IPV6_API=
-USE_PROXY_IPV6=false
-DISABLE_PROXY=false
+SHUFFLE=true
+USE_PROXY_IPV6=task1
+DISABLE_PROXY=task1&task2
 ```
 
 > 也可以在初始化时通过关键字参数覆盖任意配置，例如 `XiaoboTask(max_workers=10, retries=3)`。
