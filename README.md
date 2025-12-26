@@ -157,7 +157,7 @@ task_manager.submit_tasks_from_file(
 | `PROXY_IPV6_API` | *(空)*   | IPv6 代理提取 API 地址                                                         |
 | `RETRIES`        | `2`     | 重试次数（抛出 `TaskFailed` 不重试）                                                |
 | `RETRY_DELAY`    | `0`     | 重试延迟（秒）                                                                  |
-| `SHUFFLE`        | `false` | 是否打乱任务顺序，支持布尔值或任务名称，多个任务用&拼接，如： `task1&task2`                                         |
+| `SHUFFLE`        | `false` | 是否打乱任务顺序，按照数量运行的任务，支持布尔值或任务名称，多个任务用&拼接，如： `task1&task2`                  |
 | `USE_PROXY_IPV6` | `false` | 是否优先使用 IPv6 代理，支持布尔值或任务名称，多个任务用&拼接，如： `task1&task2`                      |
 | `DISABLE_PROXY`  | `false` | 是否禁用代理，支持布尔值或任务名称，多个任务用&拼接，如：`task1&task2`                               |
 
@@ -174,9 +174,12 @@ PROXY_API=https://abc.com/proxies
 PROXY_IPV6_API=https://abc.com/ipv6/proxies
 RETRIES=2
 RETRY_DELAY=0
+# 布尔值 所有任务都打乱运行顺序
 SHUFFLE=true
+# 按任务名匹配示例: 仅 TaskA 使用IPV6代理
 USE_PROXY_IPV6=task1
-DISABLE_PROXY=task1&task2
+# 按任务名匹配示例: 仅 TaskA 和 TaskB 禁用代理
+DISABLE_PROXY=TaskA&TaskB
 ```
 
 > 也可以在初始化时通过关键字参数覆盖任意配置，例如 `XiaoboTask(max_workers=10, retries=3)`。
