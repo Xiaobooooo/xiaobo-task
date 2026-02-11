@@ -24,7 +24,23 @@ from xiaobo_task.settings import Settings
 
 class BaseTask(ABC):
 
-    def __init__(self, task_manager_cls: Type[BaseTaskManager], name: str = "XiaoboTask", **kwargs):
+    def __init__(
+            self,
+            task_manager_cls: Type[BaseTaskManager],
+            name: str = "XiaoboTask",
+            *,
+            max_workers: Optional[int] = None,
+            proxy: Optional[str] = None,
+            proxy_ipv6: Optional[str] = None,
+            proxy_api: Optional[str] = None,
+            proxy_ipv6_api: Optional[str] = None,
+            retries: Optional[int] = None,
+            retry_delay: Optional[float] = None,
+            shuffle: Optional[Union[bool, str]] = None,
+            use_proxy_ipv6: Optional[Union[bool, str]] = None,
+            disable_proxy: Optional[Union[bool, str]] = None,
+            **kwargs,
+    ):
         """初始化 XiaoboTask 实例。
 
         配置会自动从 .env 文件、环境变量或默认值加载。
@@ -32,9 +48,26 @@ class BaseTask(ABC):
 
         参数:
             name (str): 任务实例的名称。
-            **kwargs: 任何配置参数，将覆盖 .env 文件或默认值。
-                      例如: max_workers=10, retries=5
+            max_workers (int): 最大线程数，默认 5。
+            proxy (str): 代理地址。
+            proxy_ipv6 (str): IPv6 代理地址。
+            proxy_api (str): 代理 API 地址。
+            proxy_ipv6_api (str): IPv6 代理 API 地址。
+            retries (int): 重试次数，默认 2。
+            retry_delay (float): 重试延迟（秒），默认 0。
+            shuffle (bool | str): 是否打乱任务顺序。
+            use_proxy_ipv6 (bool | str): 是否使用 IPv6 代理。
+            disable_proxy (bool | str): 是否禁用代理。
+            **kwargs: 其他配置参数。
         """
+        kwargs.update({
+            k: v for k, v in {
+                'max_workers': max_workers, 'proxy': proxy, 'proxy_ipv6': proxy_ipv6,
+                'proxy_api': proxy_api, 'proxy_ipv6_api': proxy_ipv6_api,
+                'retries': retries, 'retry_delay': retry_delay, 'shuffle': shuffle,
+                'use_proxy_ipv6': use_proxy_ipv6, 'disable_proxy': disable_proxy,
+            }.items() if v is not None
+        })
         self.logger = logger.bind(name=name)
 
         # 过滤掉值为 None 的 kwargs，这样 pydantic 才会继续查找 env/default
@@ -272,7 +305,22 @@ class BaseTask(ABC):
 
 class XiaoboTask(BaseTask):
 
-    def __init__(self, name: str = "XiaoboTask", **kwargs):
+    def __init__(
+            self,
+            name: str = "XiaoboTask",
+            *,
+            max_workers: Optional[int] = None,
+            proxy: Optional[str] = None,
+            proxy_ipv6: Optional[str] = None,
+            proxy_api: Optional[str] = None,
+            proxy_ipv6_api: Optional[str] = None,
+            retries: Optional[int] = None,
+            retry_delay: Optional[float] = None,
+            shuffle: Optional[Union[bool, str]] = None,
+            use_proxy_ipv6: Optional[Union[bool, str]] = None,
+            disable_proxy: Optional[Union[bool, str]] = None,
+            **kwargs,
+    ):
         """初始化 XiaoboTask 实例。
 
         配置会自动从 .env 文件、环境变量或默认值加载。
@@ -280,10 +328,26 @@ class XiaoboTask(BaseTask):
 
         参数:
             name (str): 任务实例的名称。
-            **kwargs: 任何配置参数，将覆盖 .env 文件或默认值。
-                      例如: max_workers=10, retries=5
+            max_workers (int): 最大线程数，默认 5。
+            proxy (str): 代理地址。
+            proxy_ipv6 (str): IPv6 代理地址。
+            proxy_api (str): 代理 API 地址。
+            proxy_ipv6_api (str): IPv6 代理 API 地址。
+            retries (int): 重试次数，默认 2。
+            retry_delay (float): 重试延迟（秒），默认 0。
+            shuffle (bool | str): 是否打乱任务顺序。
+            use_proxy_ipv6 (bool | str): 是否使用 IPv6 代理。
+            disable_proxy (bool | str): 是否禁用代理。
+            **kwargs: 其他配置参数。
         """
-        super().__init__(TaskManager, name, **kwargs)
+        super().__init__(
+            TaskManager, name,
+            max_workers=max_workers, proxy=proxy, proxy_ipv6=proxy_ipv6,
+            proxy_api=proxy_api, proxy_ipv6_api=proxy_ipv6_api,
+            retries=retries, retry_delay=retry_delay, shuffle=shuffle,
+            use_proxy_ipv6=use_proxy_ipv6, disable_proxy=disable_proxy,
+            **kwargs,
+        )
         self._stats_lock = threading.Lock()
 
     def _increment_stat(self, key: str):
@@ -437,7 +501,22 @@ class XiaoboTask(BaseTask):
 
 
 class AsyncXiaoboTask(BaseTask):
-    def __init__(self, name: str = "AsyncXiaoboTask", **kwargs):
+    def __init__(
+            self,
+            name: str = "AsyncXiaoboTask",
+            *,
+            max_workers: Optional[int] = None,
+            proxy: Optional[str] = None,
+            proxy_ipv6: Optional[str] = None,
+            proxy_api: Optional[str] = None,
+            proxy_ipv6_api: Optional[str] = None,
+            retries: Optional[int] = None,
+            retry_delay: Optional[float] = None,
+            shuffle: Optional[Union[bool, str]] = None,
+            use_proxy_ipv6: Optional[Union[bool, str]] = None,
+            disable_proxy: Optional[Union[bool, str]] = None,
+            **kwargs,
+    ):
         """初始化 AsyncXiaoboTask 实例。
 
         配置会自动从 .env 文件、环境变量或默认值加载。
@@ -445,10 +524,26 @@ class AsyncXiaoboTask(BaseTask):
 
         参数:
             name (str): 任务实例的名称。
-            **kwargs: 任何配置参数，将覆盖 .env 文件或默认值。
-                      例如: max_workers=10, retries=5
+            max_workers (int): 最大线程数，默认 5。
+            proxy (str): 代理地址。
+            proxy_ipv6 (str): IPv6 代理地址。
+            proxy_api (str): 代理 API 地址。
+            proxy_ipv6_api (str): IPv6 代理 API 地址。
+            retries (int): 重试次数，默认 2。
+            retry_delay (float): 重试延迟（秒），默认 0。
+            shuffle (bool | str): 是否打乱任务顺序。
+            use_proxy_ipv6 (bool | str): 是否使用 IPv6 代理。
+            disable_proxy (bool | str): 是否禁用代理。
+            **kwargs: 其他配置参数。
         """
-        super().__init__(AsyncTaskManager, name, **kwargs)
+        super().__init__(
+            AsyncTaskManager, name,
+            max_workers=max_workers, proxy=proxy, proxy_ipv6=proxy_ipv6,
+            proxy_api=proxy_api, proxy_ipv6_api=proxy_ipv6_api,
+            retries=retries, retry_delay=retry_delay, shuffle=shuffle,
+            use_proxy_ipv6=use_proxy_ipv6, disable_proxy=disable_proxy,
+            **kwargs,
+        )
         self._stats_lock = asyncio.Lock()
 
     async def _increment_stat(self, key: str):
